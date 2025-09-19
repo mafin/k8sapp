@@ -1,0 +1,14 @@
+services:
+  app:
+    build:
+      context: .
+      target: app_dev
+    volumes:
+      - ./src:/var/www/html/src
+      - ./tests:/var/www/html/tests
+      - ./config:/var/www/html/config
+      - ./composer.json:/var/www/html/composer.json
+      - ./composer.lock:/var/www/html/composer.lock
+      - ./phpstan.neon:/var/www/html/phpstan.neon
+      - ./phpunit.dist.xml:/var/www/html/phpunit.dist.xml
+      - ./.php-cs-fixer.dist.php:/var/www/html/.php-cs-fixer.dist.php

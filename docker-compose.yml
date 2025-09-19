@@ -1,0 +1,11 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+    environment:
+      APP_ENV: prod
+    volumes:
+      - ./var/app.db:/var/www/html/var/app.db

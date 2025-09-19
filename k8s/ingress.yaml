@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: k8sapp-ingress
+  namespace: k8sapp
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod" # Volitelné: Pro automatické SSL certifikáty
+spec:
+  rules:
+    - host: api.reefclip.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: k8sapp-service
+                port:
+                  number: 80
