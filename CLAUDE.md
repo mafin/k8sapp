@@ -72,7 +72,11 @@ This is a Symfony 7 application with API Platform for automatic REST API generat
 - **Environment**: Separate test environment with isolated database
 
 ### Deployment Pipeline
-1. **CI:** GitHub Actions runs Composer scripts (`composer cs:check`, `composer phpstan`, `composer test`)
+1. **CI:** GitHub Actions runs complete test suite including:
+   - Database setup (create, migrate, fixtures)
+   - Code style checks (`composer cs:check`)
+   - Static analysis (`composer phpstan`)
+   - API tests (`composer test`)
 2. **Build:** Multi-stage Docker image pushed to DigitalOcean Container Registry
 3. **Deploy:** ArgoCD monitors Git repository and syncs to Kubernetes cluster
 4. **Infrastructure:** Kubernetes manifests in `k8s/` directory, accessible via `api.reefclip.com`
