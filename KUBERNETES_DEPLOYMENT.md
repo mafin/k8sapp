@@ -177,7 +177,17 @@ kubectl apply -f k8s/ingress.yaml
 - Při změně Docker image tagu v deployment.yaml ArgoCD automaticky aktualizuje deployment
 - Přístup přes ArgoCD UI pro monitoring
 
-**Důležité:** ArgoCD sleduje změny v Git repository (konkrétně v `k8s/` adresáři). GitHub Actions automaticky vytváří versioned image tagy (např. `v1.123`), ale ArgoCD aplikuje změny pouze když se změní tag v `k8s/deployment.yaml`.
+**Automatický deployment proces:**
+1. **GitHub Actions CI/CD** → spustí testy a buildí Docker image
+2. **Registry push** → image je pushnut do DigitalOcean Container Registry
+3. **Automatická aktualizace** → GitHub Actions aktualizuje `k8s/deployment.yaml` s novým tagem
+4. **Git commit** → změna je commitnuta zpět do repository s message `deploy: update to v1.XXX 🤖`
+5. **ArgoCD sync** → detekuje změnu a nasadí novou verzi
+
+**Výhody tohoto přístupu:**
+- ✅ Eliminuje race condition - ArgoCD vidí změnu až když je image v registry
+- ✅ Automatický deployment bez manuálního zásahu
+- ✅ Jasná version tracking díky specific tagům
 
 ## 6. DNS konfigurace
 

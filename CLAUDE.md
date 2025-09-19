@@ -72,17 +72,27 @@ This is a Symfony 7 application with API Platform for automatic REST API generat
 - **Environment**: Separate test environment with isolated database
 
 ### Deployment Pipeline
-1. **CI:** GitHub Actions runs complete test suite including:
+
+GitHub Actions automaticky:
+1. **CI/CD Tests:** Spustí kompletní test suite:
    - Database setup (create, migrate, fixtures)
    - Code style checks (`composer cs:check`)
    - Static analysis (`composer phpstan`)
    - API tests (`composer test`)
-2. **Build:** Multi-stage Docker image with versioned tags:
-   - `latest` - Latest stable version
-   - `v1.X` - Sequential version numbers
-   - `<git-sha>` - Commit-specific tags
-3. **Deploy:** ArgoCD monitors Git repository and syncs specific tagged versions to Kubernetes cluster
-4. **Infrastructure:** Kubernetes manifests in `k8s/` directory, accessible via `api.reefclip.com`
+2. **Build & Push:** Buildí Docker image s multiple tagy:
+   - `latest` (pro development)
+   - `v1.${{ github.run_number }}` (pro production versioning)
+   - `${{ github.sha }}` (pro commit tracking)
+3. **Automatic Deployment Update:** Po úspěšném push do registry:
+   - Automaticky aktualizuje `k8s/deployment.yaml` s novým image tagem
+   - Commitne změnu zpět do Git repository s message `deploy: update to v1.XXX 🤖`
+4. **ArgoCD Sync:** ArgoCD detekuje změnu v Git a nasadí novou verzi do Kubernetes
+
+**Výhody tohoto přístupu:**
+- ✅ **Eliminuje race condition** - ArgoCD vidí změnu až když je image v registry
+- ✅ **Automatic deployment** bez manuálního zásahu
+- ✅ **Jasná verze tracking** díky specific tagům
+- ✅ **Snadné rozpoznání** deployment commitů (🤖 emoji)
 
 ### Configuration Notes
 - Uses standard Symfony environment variables and `.env` files

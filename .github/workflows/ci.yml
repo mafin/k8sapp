@@ -63,3 +63,18 @@ jobs:
             registry.digitalocean.com/mafin-dev/k8sapp:latest
             registry.digitalocean.com/mafin-dev/k8sapp:${{ github.sha }}
             registry.digitalocean.com/mafin-dev/k8sapp:v1.${{ github.run_number }}
+
+      - name: Update Kubernetes deployment
+        if: success()
+        run: |
+          # Update image tag in deployment.yaml
+          sed -i "s|image: registry.digitalocean.com/mafin-dev/k8sapp:.*|image: registry.digitalocean.com/mafin-dev/k8sapp:v1.${{ github.run_number }}|" k8s/deployment.yaml
+
+          # Configure git
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+          # Commit and push the change
+          git add k8s/deployment.yaml
+          git commit -m "deploy: update to v1.${{ github.run_number }} 🤖"
+          git push

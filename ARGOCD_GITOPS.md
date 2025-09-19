@@ -119,10 +119,14 @@ graph LR
     B --> C[Tests & Quality]
     C --> D[Docker Build]
     D --> E[Push to Registry]
-    E --> F[ArgoCD Detection]
-    F --> G[Kubernetes Sync]
-    G --> H[Application Running]
+    E --> F[Update deployment.yaml]
+    F --> G[Git Commit & Push]
+    G --> H[ArgoCD Detection]
+    H --> I[Kubernetes Sync]
+    I --> J[Application Running]
 ```
+
+**Důležité:** GitHub Actions teď automaticky aktualizuje `k8s/deployment.yaml` s novým image tagem **až po** úspěšném push do registry. To eliminuje race condition kdy ArgoCD detekuje změny dříve než je image dostupný.
 
 ### 1. Code změny → Git push
 ```bash
@@ -135,6 +139,8 @@ git push origin master
 - ✅ Testy, PHPStan, CS Fixer
 - ✅ Docker build
 - ✅ Push do DigitalOcean Registry
+- ✅ **Automatická aktualizace** `k8s/deployment.yaml` s novým tagem
+- ✅ **Git commit & push** změny zpět do repository
 
 ### 3. ArgoCD detekce a sync
 1. **Detection**: ArgoCD zjistí změny v Git
