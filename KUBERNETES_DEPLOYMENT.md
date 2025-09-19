@@ -174,8 +174,10 @@ kubectl apply -f k8s/ingress.yaml
 
 ### Sledování ArgoCD
 - ArgoCD automaticky sleduje změny v Git repository
-- Při změně Docker image v registry ArgoCD automaticky aktualizuje deployment
+- Při změně Docker image tagu v deployment.yaml ArgoCD automaticky aktualizuje deployment
 - Přístup přes ArgoCD UI pro monitoring
+
+**Důležité:** ArgoCD sleduje změny v Git repository (konkrétně v `k8s/` adresáři). GitHub Actions automaticky vytváří versioned image tagy (např. `v1.123`), ale ArgoCD aplikuje změny pouze když se změní tag v `k8s/deployment.yaml`.
 
 ## 6. DNS konfigurace
 
@@ -257,6 +259,25 @@ kubectl get pods -n ingress-nginx
 kubectl describe ingress -n k8sapp
 ```
 
+#### ArgoCD version tracking problémy
+```bash
+# Problém: ArgoCD ukazuje "Synced" ale neznáte jaká verze je nasazená
+
+# 1. Zjistěte aktuální image tag v deploymentu
+kubectl get deployment k8sapp-deployment -n k8sapp -o jsonpath='{.spec.template.spec.containers[0].image}'
+# Výstup: registry.digitalocean.com/mafin-dev/k8sapp:v1.123
+
+# 2. Porovnejte s nejnovějším GitHub Actions run
+# GitHub Actions vytváří tagy ve formátu: v1.${{ github.run_number }}
+# Run number 123 = v1.123 tag
+
+# 3. Zkontrolujte Git commit hash v ArgoCD
+kubectl describe application k8sapp -n argocd | grep -E "(Revision|Target)"
+
+# 4. Force refresh ArgoCD pokud je potřeba
+kubectl patch application k8sapp -n argocd --type merge --patch='{"metadata": {"annotations": {"argocd.argoproj.io/refresh": "hard"}}}'
+```
+
 ### Užitečné příkazy pro debugging
 ```bash
 # Připojení do běžícího kontejneru
@@ -276,12 +297,16 @@ kubectl rollout history deployment/k8sapp-deployment -n k8sapp
 
 ### Ruční aktualizace image
 ```bash
-# Nastavení nového image
+# Nastavení nového image (použijte specific tag z GitHub Actions)
 kubectl set image deployment/k8sapp-deployment -n k8sapp \
-  k8sapp=registry.digitalocean.com/mafin-dev/k8sapp:new-tag
+  k8sapp=registry.digitalocean.com/mafin-dev/k8sapp:v1.123
 
 # Sledování rollout
 kubectl rollout status deployment/k8sapp-deployment -n k8sapp
+
+# Alternativně - editace deployment YAML
+kubectl edit deployment k8sapp-deployment -n k8sapp
+# Změňte image tag a uložte
 ```
 
 ### Škálování

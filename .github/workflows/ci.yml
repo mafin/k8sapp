@@ -59,4 +59,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: registry.digitalocean.com/mafin-dev/k8sapp:latest
+          tags: |
+            registry.digitalocean.com/mafin-dev/k8sapp:latest
+            registry.digitalocean.com/mafin-dev/k8sapp:${{ github.sha }}
+            registry.digitalocean.com/mafin-dev/k8sapp:v1.${{ github.run_number }}

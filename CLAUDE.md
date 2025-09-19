@@ -77,8 +77,11 @@ This is a Symfony 7 application with API Platform for automatic REST API generat
    - Code style checks (`composer cs:check`)
    - Static analysis (`composer phpstan`)
    - API tests (`composer test`)
-2. **Build:** Multi-stage Docker image pushed to DigitalOcean Container Registry
-3. **Deploy:** ArgoCD monitors Git repository and syncs to Kubernetes cluster
+2. **Build:** Multi-stage Docker image with versioned tags:
+   - `latest` - Latest stable version
+   - `v1.X` - Sequential version numbers
+   - `<git-sha>` - Commit-specific tags
+3. **Deploy:** ArgoCD monitors Git repository and syncs specific tagged versions to Kubernetes cluster
 4. **Infrastructure:** Kubernetes manifests in `k8s/` directory, accessible via `api.reefclip.com`
 
 ### Configuration Notes
