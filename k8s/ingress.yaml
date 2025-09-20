@@ -6,6 +6,7 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod" # Volitelné: Pro automatické SSL certifikáty
 spec:
+  ingressClassName: nginx
   rules:
     - host: api.reefclip.com
       http:

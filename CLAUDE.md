@@ -101,6 +101,13 @@ GitHub Actions automaticky:
 - Supervisor manages both processes in single container
 - Error logging enabled for debugging in production environment
 
+### Production Infrastructure
+- **Kubernetes Deployment:** Hosted on DigitalOcean Kubernetes cluster
+- **Domain:** `api.reefclip.com` (configured via DigitalOcean DNS)
+- **Ingress Controller:** NGINX Ingress Controller for external traffic routing
+- **Load Balancer:** DigitalOcean Load Balancer with external IP
+- **SSL/TLS:** Ready for cert-manager integration with Let's Encrypt
+
 ## Development Workflow
 
 When making changes:

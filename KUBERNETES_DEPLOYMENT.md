@@ -123,7 +123,52 @@ kubectl logs -n k8sapp deployment/k8sapp-deployment -f
 kubectl logs -n k8sapp <pod-name>
 ```
 
-## 5. ArgoCD GitOps (volitelné)
+## 5. Instalace NGINX Ingress Controller
+
+### Důležité: Ingress Controller pro DigitalOcean
+Pro funkčnost Ingress (externí přístup k aplikaci) musíte nainstalovat NGINX Ingress Controller:
+
+```bash
+# Instalace NGINX Ingress Controller pro DigitalOcean
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.2/deploy/static/provider/do/deploy.yaml
+
+# Čekání na ready stav
+kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=120s
+
+# Získání External IP (může trvat několik minut)
+kubectl get service ingress-nginx-controller -n ingress-nginx
+```
+
+### Aktualizace Ingress manifestu
+Ujistěte se, že váš `k8s/ingress.yaml` obsahuje správnou IngressClass:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: k8sapp-ingress
+  namespace: k8sapp
+spec:
+  ingressClassName: nginx  # Důležité!
+  rules:
+    - host: api.reefclip.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: k8sapp-service
+                port:
+                  number: 80
+```
+
+### Aplikace aktualizovaného Ingress
+```bash
+kubectl apply -f k8s/ingress.yaml
+```
+
+## 6. ArgoCD GitOps (volitelné)
 
 ### Instalace ArgoCD (pokud není nainstalovaný)
 ```bash
@@ -189,22 +234,34 @@ kubectl apply -f k8s/ingress.yaml
 - ✅ Automatický deployment bez manuálního zásahu
 - ✅ Jasná version tracking díky specific tagům
 
-## 6. DNS konfigurace
+## 7. DNS konfigurace
 
 ### Získání externí IP
 ```bash
-# Zjistěte IP adresu load balanceru
-kubectl get ingress -n k8sapp
+# Zjistěte IP adresu z ingress controller load balanceru
+kubectl get service ingress-nginx-controller -n ingress-nginx
 
-# Nebo alternativně
-kubectl get service -n k8sapp --output wide
+# Ověřte ingress status
+kubectl get ingress -n k8sapp
 ```
 
-### Nastavení DNS
+### Nastavení DNS v DigitalOcean
+Pokud používáte DigitalOcean DNS:
+
+1. **DigitalOcean Dashboard** → **Networking** → **Domains**
+2. **Klikněte na vaši doménu** (např. `reefclip.com`)
+3. **Najděte A záznam pro** `api` nebo **přidejte nový záznam**:
+   - **Type:** `A`
+   - **Hostname:** `api`
+   - **Value:** `<EXTERNAL_IP_FROM_INGRESS_CONTROLLER>`
+   - **TTL:** `300` (5 minut)
+4. **Save**
+
+### Alternativně - jiný DNS poskytovatel
 1. Přihlaste se k vašemu DNS poskytovateli
 2. Vytvořte **A záznam**:
    - **Name:** `api.reefclip.com`
-   - **Value:** `<IP_ADDRESS_FROM_INGRESS>`
+   - **Value:** `<EXTERNAL_IP_FROM_INGRESS_CONTROLLER>`
    - **TTL:** 300 (5 minut)
 
 ### Ověření DNS
@@ -216,7 +273,7 @@ nslookup api.reefclip.com
 dig api.reefclip.com
 ```
 
-## 7. Testování aplikace
+## 8. Testování aplikace
 
 ### Lokální test přes port-forward
 ```bash
@@ -238,7 +295,7 @@ curl https://api.reefclip.com/api
 # https://api.reefclip.com/api
 ```
 
-## 8. Řešení problémů
+## 9. Řešení problémů
 
 ### Časté problémy a řešení
 
@@ -303,7 +360,7 @@ kubectl rollout restart deployment/k8sapp-deployment -n k8sapp
 kubectl rollout history deployment/k8sapp-deployment -n k8sapp
 ```
 
-## 9. Údržba a aktualizace
+## 10. Údržba a aktualizace
 
 ### Ruční aktualizace image
 ```bash
@@ -337,7 +394,7 @@ kubectl delete -f k8s/
 kubectl delete namespace k8sapp
 ```
 
-## 10. Kompletní deployment script
+## 11. Kompletní deployment script
 
 ```bash
 #!/bin/bash
