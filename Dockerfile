@@ -52,10 +52,14 @@ RUN php bin/console assets:install --env=prod --symlink --relative public && \
 # Copy configurations
 COPY docker/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY docker/supervisor/supervisord.conf /etc/supervisord.conf
+COPY docker/entrypoint.sh /entrypoint.sh
+
+# Make entrypoint executable
+RUN chmod +x /entrypoint.sh
 
 EXPOSE 80
 
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
+ENTRYPOINT ["/entrypoint.sh"]
 
 # Stage 3: Development build (with dev dependencies and Composer)
 FROM app_build AS app_dev
