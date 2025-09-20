@@ -16,9 +16,9 @@ echo "🔄 Running database migrations..."
 # Run migrations (this will create SQLite database if it doesn't exist)
 php bin/console doctrine:migrations:migrate --env=prod --no-interaction
 
-echo "🌱 Loading database fixtures..."
-# Load fixtures (only if database is empty)
-php bin/console doctrine:fixtures:load --env=prod --no-interaction --append
+echo "ℹ️ Skipping fixtures loading in production environment..."
+# Note: Fixtures are not loaded in production for security reasons
+# If you need sample data, load it manually after deployment
 
 echo "♻️ Clearing and warming cache..."
 # Clear and warm cache for production
