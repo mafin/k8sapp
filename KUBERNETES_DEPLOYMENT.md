@@ -168,7 +168,103 @@ spec:
 kubectl apply -f k8s/ingress.yaml
 ```
 
-## 6. ArgoCD GitOps (volitelné)
+## 6. SSL/TLS Certificate Setup (doporučeno)
+
+### Instalace cert-manager
+Pro automatické SSL certifikáty z Let's Encrypt nainstalujte cert-manager:
+
+```bash
+# Instalace cert-manager
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.3/cert-manager.yaml
+
+# Čekání na ready stav
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=cert-manager -n cert-manager --timeout=120s
+
+# Ověření instalace
+kubectl get pods -n cert-manager
+```
+
+### Vytvoření Let's Encrypt ClusterIssuer
+Vytvořte `k8s/letsencrypt-issuer.yaml`:
+
+```yaml
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    # Let's Encrypt ACME server URL pro production
+    server: https://acme-v02.api.letsencrypt.org/directory
+    # Email pro notifikace (změňte na váš email)
+    email: your-email@example.com
+    # Secret pro ukládání ACME private key
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    # HTTP01 challenge solver
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+```
+
+```bash
+# Aplikujte ClusterIssuer
+kubectl apply -f k8s/letsencrypt-issuer.yaml
+
+# Ověřte stav
+kubectl get clusterissuer letsencrypt-prod
+```
+
+### Aktualizace Ingress pro SSL
+Upravte `k8s/ingress.yaml` pro podporu SSL:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: k8sapp-ingress
+  namespace: k8sapp
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - api.reefclip.com
+    secretName: api-reefclip-com-tls
+  rules:
+    - host: api.reefclip.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: k8sapp-service
+                port:
+                  number: 80
+```
+
+```bash
+# Aplikujte aktualizovaný ingress
+kubectl apply -f k8s/ingress.yaml
+```
+
+### Ověření SSL certifikátu
+```bash
+# Zkontrolujte stav certifikátu
+kubectl get certificate -n k8sapp
+kubectl describe certificate api-reefclip-com-tls -n k8sapp
+
+# Test HTTPS připojení
+curl https://api.reefclip.com/api
+```
+
+**Poznámka:** Let's Encrypt certifikát se automaticky vystaví během 1-5 minut po správném nastavení DNS.
+
+## 7. ArgoCD GitOps (volitelné)
 
 ### Instalace ArgoCD (pokud není nainstalovaný)
 ```bash
@@ -234,7 +330,7 @@ kubectl apply -f k8s/ingress.yaml
 - ✅ Automatický deployment bez manuálního zásahu
 - ✅ Jasná version tracking díky specific tagům
 
-## 7. DNS konfigurace
+## 8. DNS konfigurace
 
 ### Získání externí IP
 ```bash
@@ -273,7 +369,7 @@ nslookup api.reefclip.com
 dig api.reefclip.com
 ```
 
-## 8. Testování aplikace
+## 9. Testování aplikace
 
 ### Lokální test přes port-forward
 ```bash
@@ -295,7 +391,7 @@ curl https://api.reefclip.com/api
 # https://api.reefclip.com/api
 ```
 
-## 9. Řešení problémů
+## 10. Řešení problémů
 
 ### Časté problémy a řešení
 
@@ -360,7 +456,7 @@ kubectl rollout restart deployment/k8sapp-deployment -n k8sapp
 kubectl rollout history deployment/k8sapp-deployment -n k8sapp
 ```
 
-## 10. Údržba a aktualizace
+## 11. Údržba a aktualizace
 
 ### Ruční aktualizace image
 ```bash
@@ -394,7 +490,7 @@ kubectl delete -f k8s/
 kubectl delete namespace k8sapp
 ```
 
-## 11. Kompletní deployment script
+## 12. Kompletní deployment script
 
 ```bash
 #!/bin/bash

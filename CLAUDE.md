@@ -106,7 +106,9 @@ GitHub Actions automaticky:
 - **Domain:** `api.reefclip.com` (configured via DigitalOcean DNS)
 - **Ingress Controller:** NGINX Ingress Controller for external traffic routing
 - **Load Balancer:** DigitalOcean Load Balancer with external IP
-- **SSL/TLS:** Ready for cert-manager integration with Let's Encrypt
+- **SSL/TLS:** Automatic Let's Encrypt certificates via cert-manager
+- **Certificate Management:** cert-manager with HTTP01 challenge solver
+- **HTTPS Redirect:** Automatic HTTP to HTTPS redirection enabled
 
 ## Development Workflow
 
@@ -132,3 +134,28 @@ If `/api` shows 500 errors or CSS/JS assets have wrong MIME types:
 ### Database Issues
 - Database file permissions: `docker-compose exec app chown www-data:www-data /var/www/html/var/app.db`
 - Run migrations: `docker-compose exec app php bin/console doctrine:migrations:migrate --env=prod --no-interaction`
+
+### SSL/TLS Certificate Issues
+Production API uses automatic Let's Encrypt certificates via cert-manager:
+
+**Certificate status check:**
+```bash
+kubectl get certificate -n k8sapp
+kubectl describe certificate api-reefclip-com-tls -n k8sapp
+```
+
+**Common issues:**
+- **DNS not resolving:** Ensure `api.reefclip.com` points to correct load balancer IP
+- **Certificate pending:** Let's Encrypt validation can take 1-5 minutes
+- **HTTP challenge failed:** Verify ingress controller is running and accessible
+
+**Manual certificate renewal:**
+```bash
+kubectl delete certificate api-reefclip-com-tls -n k8sapp
+kubectl apply -f k8s/ingress.yaml  # Recreates certificate
+```
+
+**Test HTTPS:**
+```bash
+curl https://api.reefclip.com/api  # Should work with valid SSL
+```

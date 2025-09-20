@@ -4,9 +4,14 @@ metadata:
   name: k8sapp-ingress
   namespace: k8sapp
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-prod" # Volitelné: Pro automatické SSL certifikáty
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
 spec:
   ingressClassName: nginx
+  tls:
+  - hosts:
+    - api.reefclip.com
+    secretName: api-reefclip-com-tls
   rules:
     - host: api.reefclip.com
       http:
