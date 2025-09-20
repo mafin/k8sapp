@@ -73,25 +73,49 @@ This is a Symfony 7 application with API Platform for automatic REST API generat
 
 ### Deployment Pipeline
 
+**Tag-based Release Workflow:**
+
+#### **Push na master branch:**
+- ✅ Spustí pouze **lint-and-test** job (rychlé feedback)
+- ✅ Žádný build ani deployment
+- ✅ Ideální pro development a code review
+
+#### **Vytvoření Git tagu (např. `v1.2.3`):**
 GitHub Actions automaticky:
 1. **CI/CD Tests:** Spustí kompletní test suite:
    - Database setup (create, migrate, fixtures)
    - Code style checks (`composer cs:check`)
    - Static analysis (`composer phpstan`)
    - API tests (`composer test`)
-2. **Build & Push:** Buildí Docker image s multiple tagy:
+2. **Build & Push:** Po úspěšných testech buildí Docker image s tagy:
    - `latest` (pro development)
-   - `v1.${{ github.run_number }}` (pro production versioning)
-   - `${{ github.sha }}` (pro commit tracking)
+   - `<git-tag>` (např. `v1.2.3` - pro production versioning)
+   - `<git-sha>` (pro commit tracking)
 3. **Automatic Deployment Update:** Po úspěšném push do registry:
    - Automaticky aktualizuje `k8s/deployment.yaml` s novým image tagem
-   - Commitne změnu zpět do Git repository s message `deploy: update to v1.XXX 🤖`
+   - Commitne změnu zpět do Git repository s message `deploy: update to v1.2.3 🤖`
 4. **ArgoCD Sync:** ArgoCD detekuje změnu v Git a nasadí novou verzi do Kubernetes
+
+**Jak vytvořit release:**
+```bash
+# 1. Commitněte změny na master
+git add .
+git commit -m "feat: new feature"
+git push origin master
+
+# 2. Vytvořte tag pro release
+git tag v1.2.3
+git push origin v1.2.3
+
+# Nebo obojí najednou:
+git tag v1.2.3 && git push origin master --follow-tags
+```
 
 **Výhody tohoto přístupu:**
 - ✅ **Eliminuje race condition** - ArgoCD vidí změnu až když je image v registry
-- ✅ **Automatic deployment** bez manuálního zásahu
-- ✅ **Jasná verze tracking** díky specific tagům
+- ✅ **Kontrolovaný deployment** - pouze tagy spouštějí release
+- ✅ **Rychlé CI feedback** - push na master pouze testuje
+- ✅ **Semantic versioning** - jasné verze tracking pomocí Git tagů
 - ✅ **Snadné rozpoznání** deployment commitů (🤖 emoji)
 
 ### Configuration Notes
@@ -112,11 +136,20 @@ GitHub Actions automaticky:
 
 ## Development Workflow
 
-When making changes:
+### Daily Development:
 1. Run all quality checks: `composer quality` (or individual commands: `composer cs:check`, `composer phpstan`, `composer test`)
 2. Fix code style if needed: `composer cs:fix`
 3. Test locally with Docker: `docker-compose up --build`
-4. Commit triggers CI/CD pipeline for automatic deployment
+4. Commit and push to master: triggers **only tests** (fast feedback)
+
+### Creating Releases:
+1. Ensure all changes are committed and pushed to master
+2. Create and push a Git tag for release:
+```bash
+git tag v1.2.3
+git push origin v1.2.3
+```
+3. Tag triggers **full CI/CD pipeline** → Docker build → Deployment to production
 
 ## Troubleshooting
 

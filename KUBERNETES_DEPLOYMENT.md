@@ -403,14 +403,49 @@ kubectl apply -f k8s/ingress.yaml
 - Při změně Docker image tagu v deployment.yaml ArgoCD automaticky aktualizuje deployment
 - Přístup přes ArgoCD UI pro monitoring
 
+### GitHub Actions Tag-based Release Workflow
+
+Aplikace používá tag-based release workflow s oddělenými úlohami pro testování a deployment:
+
+#### Workflow struktura:
+- **Master push**: Spustí pouze `lint-and-test` job
+- **Tag creation**: Spustí `lint-and-test` + `build-and-push` jobs
+
+#### Proces vytvoření release:
+```bash
+# 1. Commitněte změny do master
+git add .
+git commit -m "feature: přidána nová funkcionalita"
+git push origin master
+
+# 2. Vytvořte tag pro release
+git tag v1.10
+git push origin v1.10
+
+# 3. GitHub Actions automaticky:
+#    - Spustí testy (lint-and-test job)
+#    - Buildí a pushne Docker image s tagem v1.10
+#    - Aktualizuje k8s/deployment.yaml s novým tagem
+#    - Commitne změnu zpět do repository
+```
+
+#### Docker image tagging:
+Pro každý tag se vytvoří 3 image tagy:
+- `registry.digitalocean.com/mafin-dev/k8sapp:latest`
+- `registry.digitalocean.com/mafin-dev/k8sapp:<git-sha>`
+- `registry.digitalocean.com/mafin-dev/k8sapp:<tag-name>` (např. v1.10)
+
 **Automatický deployment proces:**
-1. **GitHub Actions CI/CD** → spustí testy a buildí Docker image
-2. **Registry push** → image je pushnut do DigitalOcean Container Registry
-3. **Automatická aktualizace** → GitHub Actions aktualizuje `k8s/deployment.yaml` s novým tagem
-4. **Git commit** → změna je commitnuta zpět do repository s message `deploy: update to v1.XXX 🤖`
-5. **ArgoCD sync** → detekuje změnu a nasadí novou verzi
+1. **GitHub Actions CI/CD** → spustí testy na master push
+2. **Tag creation** → spustí build pouze pro tagy začínající "v"
+3. **Registry push** → image je pushnut do DigitalOcean Container Registry
+4. **Automatická aktualizace** → GitHub Actions aktualizuje `k8s/deployment.yaml` s novým tagem
+5. **Git commit** → změna je commitnuta zpět do repository s message `deploy: update to v1.XXX 🤖`
+6. **ArgoCD sync** → detekuje změnu a nasadí novou verzi
 
 **Výhody tohoto přístupu:**
+- ✅ Testování na každém push do master bez deploymentu
+- ✅ Deployment pouze pro explicitní releases (tagy)
 - ✅ Eliminuje race condition - ArgoCD vidí změnu až když je image v registry
 - ✅ Automatický deployment bez manuálního zásahu
 - ✅ Jasná version tracking díky specific tagům

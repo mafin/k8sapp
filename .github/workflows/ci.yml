@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - master
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   lint-and-test:
@@ -43,6 +46,7 @@ jobs:
   build-and-push:
     needs: lint-and-test
     runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
     steps:
@@ -56,6 +60,10 @@ jobs:
           username: ${{ secrets.DO_PAT }}
           password: ${{ secrets.DO_PAT }}
 
+      - name: Extract tag name
+        id: tag
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -64,13 +72,13 @@ jobs:
           tags: |
             registry.digitalocean.com/mafin-dev/k8sapp:latest
             registry.digitalocean.com/mafin-dev/k8sapp:${{ github.sha }}
-            registry.digitalocean.com/mafin-dev/k8sapp:v1.${{ github.run_number }}
+            registry.digitalocean.com/mafin-dev/k8sapp:${{ steps.tag.outputs.tag }}
 
       - name: Update Kubernetes deployment
         if: success()
         run: |
           # Update image tag in deployment.yaml
-          sed -i "s|image: registry.digitalocean.com/mafin-dev/k8sapp:.*|image: registry.digitalocean.com/mafin-dev/k8sapp:v1.${{ github.run_number }}|" k8s/deployment.yaml
+          sed -i "s|image: registry.digitalocean.com/mafin-dev/k8sapp:.*|image: registry.digitalocean.com/mafin-dev/k8sapp:${{ steps.tag.outputs.tag }}|" k8s/deployment.yaml
 
           # Configure git
           git config --local user.email "action@github.com"
@@ -78,5 +86,5 @@ jobs:
 
           # Commit and push the change
           git add k8s/deployment.yaml
-          git commit -m "deploy: update to v1.${{ github.run_number }} 🤖"
+          git commit -m "deploy: update to ${{ steps.tag.outputs.tag }} 🤖"
           git push
