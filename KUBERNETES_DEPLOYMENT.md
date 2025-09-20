@@ -184,7 +184,9 @@ kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=cert-manager -n
 kubectl get pods -n cert-manager
 ```
 
-### Vytvoření Let's Encrypt ClusterIssuer
+### Způsoby challenge - HTTP-01 vs DNS-01
+
+#### Option A: HTTP-01 Challenge (základní)
 Vytvořte `k8s/letsencrypt-issuer.yaml`:
 
 ```yaml
@@ -194,26 +196,61 @@ metadata:
   name: letsencrypt-prod
 spec:
   acme:
-    # Let's Encrypt ACME server URL pro production
     server: https://acme-v02.api.letsencrypt.org/directory
-    # Email pro notifikace (změňte na váš email)
     email: your-email@example.com
-    # Secret pro ukládání ACME private key
     privateKeySecretRef:
       name: letsencrypt-prod
-    # HTTP01 challenge solver
     solvers:
     - http01:
         ingress:
           class: nginx
 ```
 
+#### Option B: DNS-01 Challenge (doporučeno pro production)
+**Výhody:** Spolehlivější, funguje za firewallem, podporuje wildcard certifikáty
+
+1. **Vytvořte DigitalOcean API token:**
+   - **DigitalOcean Dashboard** → **API** → **Personal Access Tokens**
+   - **Generate New Token** s **Write** scope
+   - **Zkopírujte token**
+
+2. **Vytvořte secret:**
 ```bash
-# Aplikujte ClusterIssuer
+kubectl create secret generic digitalocean-dns \
+  --from-literal=access-token=YOUR_DO_API_TOKEN \
+  -n cert-manager
+```
+
+3. **Vytvořte `k8s/letsencrypt-dns.yaml`:**
+```yaml
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-dns
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: your-email@example.com
+    privateKeySecretRef:
+      name: letsencrypt-dns
+    solvers:
+    - dns01:
+        digitalocean:
+          tokenSecretRef:
+            name: digitalocean-dns
+            key: access-token
+```
+
+### Aplikace ClusterIssuer
+```bash
+# Pro HTTP-01 challenge
 kubectl apply -f k8s/letsencrypt-issuer.yaml
 
+# NEBO pro DNS-01 challenge (doporučeno)
+kubectl apply -f k8s/letsencrypt-dns.yaml
+
 # Ověřte stav
-kubectl get clusterissuer letsencrypt-prod
+kubectl get clusterissuer
 ```
 
 ### Aktualizace Ingress pro SSL
@@ -226,7 +263,8 @@ metadata:
   name: k8sapp-ingress
   namespace: k8sapp
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # Použijte název vašeho ClusterIssuer
+    cert-manager.io/cluster-issuer: "letsencrypt-dns"  # nebo "letsencrypt-prod"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
 spec:
   ingressClassName: nginx
@@ -258,11 +296,58 @@ kubectl apply -f k8s/ingress.yaml
 kubectl get certificate -n k8sapp
 kubectl describe certificate api-reefclip-com-tls -n k8sapp
 
+# Zkontrolujte challenge průběh
+kubectl get challenge -n k8sapp
+kubectl describe challenge <challenge-name> -n k8sapp
+
+# Ověřte typ certifikátu (production vs staging)
+kubectl get secret api-reefclip-com-tls -n k8sapp -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -text -noout | grep Issuer
+
 # Test HTTPS připojení
 curl https://api.reefclip.com/api
+curl -k https://api.reefclip.com/api  # Ignoruje SSL chyby pro test
 ```
 
-**Poznámka:** Let's Encrypt certifikát se automaticky vystaví během 1-5 minut po správném nastavení DNS.
+### Troubleshooting SSL problémů
+
+#### Challenge stuck v "pending" stavu
+```bash
+# Pro HTTP-01 challenge
+# - Zkontrolujte dostupnost /.well-known/acme-challenge/ endpoint
+curl http://api.reefclip.com/.well-known/acme-challenge/test
+
+# Pro DNS-01 challenge
+# - Čekejte 2-10 minut na DNS propagaci
+# - Zkontrolujte DigitalOcean API token permissions
+```
+
+#### "EOF" chyby u HTTP-01 challenge
+- **Řešení:** Přepněte na DNS-01 challenge (spolehlivější)
+- HTTP-01 může selhat kvůli síťovým problémům nebo firewallu
+
+#### Staging certifikát místo production
+```bash
+# Zkontrolujte Issuer v certifikátu
+kubectl get secret api-reefclip-com-tls -n k8sapp -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -text -noout | grep Issuer
+
+# Mělo by být: "Issuer: C=US, O=Let's Encrypt, CN=R13"
+# NE: "Issuer: C=US, O=(STAGING) Let's Encrypt"
+
+# Oprava: Ujistěte se, že ClusterIssuer používá production server
+# server: https://acme-v02.api.letsencrypt.org/directory
+```
+
+#### Force obnova certifikátu
+```bash
+kubectl delete certificate api-reefclip-com-tls -n k8sapp
+kubectl delete secret api-reefclip-com-tls -n k8sapp
+# Certifikát se automaticky znovu vytvoří
+```
+
+**Poznámky:**
+- **HTTP-01:** Certifikát se vystaví za 1-5 minut
+- **DNS-01:** Certifikát se vystaví za 2-10 minut (kvůli DNS propagaci)
+- **Auto-renewal:** Certifikáty se automaticky obnovují 30 dní před expirací
 
 ## 7. ArgoCD GitOps (volitelné)
 

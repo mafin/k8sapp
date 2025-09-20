@@ -136,7 +136,7 @@ If `/api` shows 500 errors or CSS/JS assets have wrong MIME types:
 - Run migrations: `docker-compose exec app php bin/console doctrine:migrations:migrate --env=prod --no-interaction`
 
 ### SSL/TLS Certificate Issues
-Production API uses automatic Let's Encrypt certificates via cert-manager:
+Production API uses automatic Let's Encrypt certificates via cert-manager with DNS-01 challenge:
 
 **Certificate status check:**
 ```bash
@@ -144,18 +144,45 @@ kubectl get certificate -n k8sapp
 kubectl describe certificate api-reefclip-com-tls -n k8sapp
 ```
 
+**Challenge types available:**
+- **HTTP-01** (`letsencrypt-issuer.yaml`) - Basic challenge via HTTP endpoint
+- **DNS-01** (`letsencrypt-dns.yaml`) - Recommended for production, requires DigitalOcean API token
+
+**DNS-01 Challenge Setup (Recommended):**
+```bash
+# 1. Create DigitalOcean API token with Write scope
+# 2. Create secret in cert-manager namespace
+kubectl create secret generic digitalocean-dns \
+  --from-literal=access-token=YOUR_DO_API_TOKEN \
+  -n cert-manager
+
+# 3. Apply DNS issuer
+kubectl apply -f k8s/letsencrypt-dns.yaml
+```
+
 **Common issues:**
 - **DNS not resolving:** Ensure `api.reefclip.com` points to correct load balancer IP
-- **Certificate pending:** Let's Encrypt validation can take 1-5 minutes
-- **HTTP challenge failed:** Verify ingress controller is running and accessible
+- **Certificate pending:** DNS propagation can take 2-10 minutes
+- **HTTP-01 EOF errors:** Use DNS-01 challenge instead (more reliable)
+- **Staging certificate:** Check issuer points to production server, not staging
 
-**Manual certificate renewal:**
+**Troubleshooting commands:**
 ```bash
+# Check challenge status
+kubectl get challenge -n k8sapp
+kubectl describe challenge <challenge-name> -n k8sapp
+
+# Check certificate issuer (should be "Let's Encrypt", not "STAGING")
+kubectl get secret api-reefclip-com-tls -n k8sapp -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -text -noout | grep Issuer
+
+# Force certificate renewal
 kubectl delete certificate api-reefclip-com-tls -n k8sapp
-kubectl apply -f k8s/ingress.yaml  # Recreates certificate
+kubectl delete secret api-reefclip-com-tls -n k8sapp
+# Certificate recreates automatically
 ```
 
 **Test HTTPS:**
 ```bash
 curl https://api.reefclip.com/api  # Should work with valid SSL
+curl -k https://api.reefclip.com/api  # Ignore SSL verification for testing
 ```
