@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: k8sapp
-          image: registry.digitalocean.com/mafin-dev/k8sapp:v1.9
+          image: registry.digitalocean.com/mafin-dev/k8sapp:v1.10
           ports:
             - containerPort: 80
       imagePullSecrets:
