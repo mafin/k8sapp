@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: k8sapp-staging
+
+namespace: k8sapp-staging
+
+namePrefix: staging-
+
+resources:
+  - ../../base
+
+patches:
+  - path: ingress-patch.yaml
+  - path: deployment-patch.yaml
+
+configMapGenerator:
+  - name: staging-config
+    literals:
+      - APP_ENV=staging
+      - DEBUG=true
+
+images:
+  - name: registry.digitalocean.com/mafin-dev/k8sapp
+    newTag: latest

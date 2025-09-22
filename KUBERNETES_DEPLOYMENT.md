@@ -1,12 +1,13 @@
 # Kubernetes Deployment Guide
 
-Tento návod popisuje kompletní postup nasazení aplikace do Kubernetes clusteru na DigitalOcean.
+Tento návod popisuje kompletní postup nasazení aplikace do Kubernetes clusteru na DigitalOcean pomocí Kustomize pro správu prostředí (staging/production).
 
 ## Předpoklady
 
 - ✅ DigitalOcean Kubernetes cluster
 - ✅ `kubectl` nainstalovaný lokálně
 - ✅ `doctl` CLI nainstalovaný a nakonfigurovaný
+- ✅ `kustomize` nainstalovaný lokálně (pro ruční nasazení bez ArgoCD)
 - ✅ Docker image v DigitalOcean Container Registry
 - ✅ DigitalOcean Personal Access Token s právy pro registry
 
@@ -56,27 +57,72 @@ kubectl get secrets -n k8sapp
 
 **Poznámka:** `<YOUR_DO_TOKEN>` nahraďte vaším DigitalOcean Personal Access Token.
 
-## 3. Nasazení aplikace
+## 3. Nasazení aplikace pomocí Kustomize
 
-### Aplikace manifestů jednotlivě
-```bash
-# 1. Namespace (pokud už neexistuje z kroku 2)
-kubectl apply -f k8s/namespace.yaml
-
-# 2. Deployment (hlavní aplikace)
-kubectl apply -f k8s/deployment.yaml
-
-# 3. Service (interní networking)
-kubectl apply -f k8s/service.yaml
-
-# 4. Ingress (externí přístup)
-kubectl apply -f k8s/ingress.yaml
+### Struktura Kustomize projektu
+```
+k8s/
+├── base/                    # Základní manifesty
+│   ├── deployment.yaml
+│   ├── service.yaml
+│   ├── ingress.yaml
+│   ├── namespace.yaml
+│   └── kustomization.yaml
+└── overlays/               # Environment-specific overrides
+    ├── production/
+    │   ├── kustomization.yaml
+    │   ├── deployment-patch.yaml
+    │   ├── ingress-patch.yaml
+    │   └── letsencrypt-production.yaml
+    └── staging/
+        ├── kustomization.yaml
+        ├── deployment-patch.yaml
+        ├── ingress-patch.yaml
+        └── letsencrypt-staging.yaml
 ```
 
-### Aplikace všech manifestů najednou
+### Nasazení pomocí Kustomize
+
+#### Production prostředí:
 ```bash
-# Aplikuje všechny YAML soubory z k8s/ adresáře
-kubectl apply -f k8s/
+# Nasazení do production (namespace: k8sapp)
+kubectl apply -k k8s/overlays/production
+
+# Ověření nasazení
+kubectl get all -n k8sapp
+```
+
+#### Staging prostředí:
+```bash
+# Nasazení do staging (namespace: k8sapp-staging)
+kubectl apply -k k8s/overlays/staging
+
+# Ověření nasazení
+kubectl get all -n k8sapp-staging
+```
+
+#### Náhled před nasazením:
+```bash
+# Zobrazí co bude nasazeno (bez aplikace)
+kustomize build k8s/overlays/production
+kustomize build k8s/overlays/staging
+```
+
+### Legacy nasazení (jednotlivé manifesty)
+**Pozor:** Tyto příkazy jsou pouze pro zpětnou kompatibilitu. Doporučujeme používat Kustomize.
+
+```bash
+# 1. Namespace (pokud už neexistuje z kroku 2)
+kubectl apply -f k8s/base/namespace.yaml
+
+# 2. Deployment (hlavní aplikace)
+kubectl apply -f k8s/base/deployment.yaml
+
+# 3. Service (interní networking)
+kubectl apply -f k8s/base/service.yaml
+
+# 4. Ingress (externí přístup)
+kubectl apply -f k8s/base/ingress.yaml
 ```
 
 ## 4. Ověření deploymentu
@@ -379,8 +425,10 @@ kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath="{.data.pas
 ```
 
 ### Nasazení ArgoCD aplikace
+
+#### Production ArgoCD aplikace:
 ```bash
-# Aplikuje ArgoCD manifest pro automatické nasazení
+# Aplikuje ArgoCD manifest pro production prostředí
 kubectl apply -f k8s/argocd-application.yaml
 
 # Ověřte ArgoCD aplikaci (pokud máte ArgoCD CLI)
@@ -388,20 +436,31 @@ argocd app list
 argocd app sync k8sapp
 ```
 
-### Alternativa bez ArgoCD
-Pokud nechcete ArgoCD, použijte přímé nasazení:
+#### Staging ArgoCD aplikace:
 ```bash
-# Nasazení bez ArgoCD (vynechá argocd-application.yaml)
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/deployment.yaml
-kubectl apply -f k8s/service.yaml
-kubectl apply -f k8s/ingress.yaml
+# Aplikuje ArgoCD manifest pro staging prostředí
+kubectl apply -f k8s/argocd-application-staging.yaml
+
+# Ověřte ArgoCD aplikaci (pokud máte ArgoCD CLI)
+argocd app list
+argocd app sync k8sapp-staging
+```
+
+### Alternativa bez ArgoCD
+Pokud nechcete ArgoCD, použijte přímé nasazení s Kustomize:
+```bash
+# Nasazení production bez ArgoCD
+kubectl apply -k k8s/overlays/production
+
+# Nasazení staging bez ArgoCD
+kubectl apply -k k8s/overlays/staging
 ```
 
 ### Sledování ArgoCD
 - ArgoCD automaticky sleduje změny v Git repository
-- Při změně Docker image tagu v deployment.yaml ArgoCD automaticky aktualizuje deployment
-- Přístup přes ArgoCD UI pro monitoring
+- Při změně Docker image tagu v `k8s/base/kustomization.yaml` ArgoCD automaticky aktualizuje deployment
+- Každé prostředí má vlastní ArgoCD aplikaci s odděleným sledováním
+- Přístup přes ArgoCD UI pro monitoring obou prostředí
 
 ### GitHub Actions Tag-based Release Workflow
 
@@ -425,7 +484,7 @@ git push origin v1.10
 # 3. GitHub Actions automaticky:
 #    - Spustí testy (lint-and-test job)
 #    - Buildí a pushne Docker image s tagem v1.10
-#    - Aktualizuje k8s/deployment.yaml s novým tagem
+#    - Aktualizuje k8s/base/kustomization.yaml s novým tagem
 #    - Commitne změnu zpět do repository
 ```
 
@@ -439,7 +498,7 @@ Pro každý tag se vytvoří 3 image tagy:
 1. **GitHub Actions CI/CD** → spustí testy na master push
 2. **Tag creation** → spustí build pouze pro tagy začínající "v"
 3. **Registry push** → image je pushnut do DigitalOcean Container Registry
-4. **Automatická aktualizace** → GitHub Actions aktualizuje `k8s/deployment.yaml` s novým tagem
+4. **Automatická aktualizace** → GitHub Actions aktualizuje `k8s/base/kustomization.yaml` s novým tagem
 5. **Git commit** → změna je commitnuta zpět do repository s message `deploy: update to v1.XXX 🤖`
 6. **ArgoCD sync** → detekuje změnu a nasadí novou verzi
 
@@ -603,11 +662,15 @@ kubectl get pods -n k8sapp
 
 ### Čištění
 ```bash
-# Smazání celé aplikace
-kubectl delete -f k8s/
+# Smazání production prostředí
+kubectl delete -k k8s/overlays/production
 
-# Nebo smazání namespace (smaže vše)
-kubectl delete namespace k8sapp
+# Smazání staging prostředí
+kubectl delete -k k8s/overlays/staging
+
+# Nebo smazání celých namespace (smaže vše)
+kubectl delete namespace k8sapp           # production
+kubectl delete namespace k8sapp-staging   # staging
 ```
 
 ## 12. Kompletní deployment script
@@ -638,9 +701,9 @@ kubectl create secret docker-registry digitalocean-registry \
   --namespace=k8sapp \
   --dry-run=client -o yaml | kubectl apply -f -
 
-# 4. Aplikace manifestů
+# 4. Aplikace manifestů pomocí Kustomize
 echo "🚢 Deploying application..."
-kubectl apply -f k8s/
+kubectl apply -k k8s/overlays/production
 
 # 5. Čekání na ready pody
 echo "⏳ Waiting for pods to be ready..."
@@ -662,4 +725,5 @@ Uložte jako `deploy.sh`, nastavte executable (`chmod +x deploy.sh`) a spusťte 
 
 - [DigitalOcean Kubernetes](https://docs.digitalocean.com/products/kubernetes/)
 - [kubectl dokumentace](https://kubernetes.io/docs/reference/kubectl/)
+- [Kustomize dokumentace](https://kustomize.io/)
 - [ArgoCD dokumentace](https://argo-cd.readthedocs.io/)

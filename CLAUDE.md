@@ -53,7 +53,7 @@ This is a Symfony 7 application with API Platform for automatic REST API generat
 - **Database:** SQLite (file-based) for simplicity
 - **Container:** Multi-stage Docker build with PHP-FPM + Nginx managed by Supervisord
 - **Extensions:** PDO, PDO SQLite, Intl for internationalization support
-- **Deployment:** Kubernetes with ArgoCD GitOps workflow
+- **Deployment:** Kubernetes with ArgoCD GitOps workflow using Kustomize for environment-specific configurations
 
 ### Domain Model
 - **Message Entity** (`src/Entity/Message.php`): Main domain object with UUID primary key, title, body, and timestamps
@@ -92,9 +92,9 @@ GitHub Actions automaticky:
    - `<git-tag>` (např. `v1.2.3` - pro production versioning)
    - `<git-sha>` (pro commit tracking)
 3. **Automatic Deployment Update:** Po úspěšném push do registry:
-   - Automaticky aktualizuje `k8s/deployment.yaml` s novým image tagem
+   - Automaticky aktualizuje `k8s/base/kustomization.yaml` s novým image tagem
    - Commitne změnu zpět do Git repository s message `deploy: update to v1.2.3 🤖`
-4. **ArgoCD Sync:** ArgoCD detekuje změnu v Git a nasadí novou verzi do Kubernetes
+4. **ArgoCD Sync:** ArgoCD detekuje změnu v Git a nasadí novou verzi pomocí Kustomize overlays
 
 **Jak vytvořit release:**
 ```bash
@@ -126,8 +126,10 @@ git tag v1.2.3 && git push origin master --follow-tags
 - Error logging enabled for debugging in production environment
 
 ### Production Infrastructure
-- **Kubernetes Deployment:** Hosted on DigitalOcean Kubernetes cluster
-- **Domain:** `api.reefclip.com` (configured via DigitalOcean DNS)
+- **Kubernetes Deployment:** Hosted on DigitalOcean Kubernetes cluster using Kustomize for environment management
+- **Environment Separation:** Production (`k8sapp` namespace) and Staging (`k8sapp-staging` namespace) via Kustomize overlays
+- **Configuration Management:** Kustomize handles environment-specific patches, configs, and image tags
+- **Domain:** `api.reefclip.com` (production) - staging available via separate domain configuration
 - **Ingress Controller:** NGINX Ingress Controller for external traffic routing
 - **Load Balancer:** DigitalOcean Load Balancer with external IP
 - **SSL/TLS:** Automatic Let's Encrypt certificates via cert-manager

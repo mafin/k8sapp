@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8sapp-deployment
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: k8sapp
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
+          env:
+            - name: APP_ENV
+              value: "staging"

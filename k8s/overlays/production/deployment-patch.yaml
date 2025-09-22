@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8sapp-deployment
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+        - name: k8sapp
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "200m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          env:
+            - name: APP_ENV
+              value: "prod"

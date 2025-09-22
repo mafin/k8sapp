@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: k8sapp-production
+
+namespace: k8sapp
+
+resources:
+  - ../../base
+  - letsencrypt-production.yaml
+
+patches:
+  - path: ingress-patch.yaml
+  - path: deployment-patch.yaml
+
+configMapGenerator:
+  - name: production-config
+    literals:
+      - APP_ENV=prod
+      - DEBUG=false
+
+images:
+  - name: registry.digitalocean.com/mafin-dev/k8sapp
+    newTag: v1.0.4

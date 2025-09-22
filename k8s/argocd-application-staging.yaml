@@ -1,20 +1,20 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: k8sapp-production
+  name: k8sapp-staging
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: 'https://github.com/mafin/k8sapp.git'
-    path: k8s/overlays/production
+    path: k8s/overlays/staging
     targetRevision: HEAD
     kustomize:
       images:
-        - registry.digitalocean.com/mafin-dev/k8sapp:v1.0.4
+        - registry.digitalocean.com/mafin-dev/k8sapp:latest
   destination:
     server: 'https://kubernetes.default.svc'
-    namespace: k8sapp
+    namespace: k8sapp-staging
   syncPolicy:
     automated:
       prune: true
