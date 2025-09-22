@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: k8sapp-deployment
-  namespace: k8sapp
   labels:
     app: k8sapp
 spec:
